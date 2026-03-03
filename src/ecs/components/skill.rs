@@ -40,7 +40,7 @@ pub struct SkillTemplate {
 #[derive(Debug, Clone)]
 pub struct ActiveEffect {
     pub skill_id: i32,
-    pub remaining_ticks: u32,  // ticks left (0 = permanent until removed)
+    pub remaining_ticks: i32,  // ticks left (0 = permanent until removed)
     pub value: i32,            // effect strength (e.g., AC bonus, damage per tick)
 }
 
@@ -59,7 +59,7 @@ impl SkillEffects {
     }
 
     /// Add or refresh a buff/debuff.
-    pub fn add_effect(&mut self, skill_id: i32, duration_ticks: u32, value: i32) {
+    pub fn add_effect(&mut self, skill_id: i32, duration_ticks: i32, value: i32) {
         self.effects.insert(skill_id, ActiveEffect {
             skill_id,
             remaining_ticks: duration_ticks,
@@ -148,7 +148,7 @@ pub mod skill_ids {
 #[derive(Debug, Clone)]
 pub struct SkillCooldowns {
     /// skill_id -> ticks remaining until usable
-    pub cooldowns: HashMap<i32, u32>,
+    pub cooldowns: HashMap<i32, i32>,
 }
 
 impl SkillCooldowns {
@@ -158,7 +158,7 @@ impl SkillCooldowns {
         }
     }
 
-    pub fn set_cooldown(&mut self, skill_id: i32, ticks: u32) {
+    pub fn set_cooldown(&mut self, skill_id: i32, ticks: i32) {
         self.cooldowns.insert(skill_id, ticks);
     }
 

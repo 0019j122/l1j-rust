@@ -18,7 +18,10 @@ pub enum AttackType {
 #[derive(Debug, Clone)]
 pub struct AttackerStats {
     pub level: i32,
+    // --- 這裡開始是重點 ---
+    #[sqlx(rename = "str")]  // 告訴程式：資料庫欄位其實叫 str
     pub str_stat: i32,
+    #[sqlx(rename = "dex")]
     pub dex_stat: i32,
     pub hit_modifier: i32,     // weapon hit bonus
     pub dmg_modifier: i32,     // weapon damage bonus
@@ -32,6 +35,7 @@ pub struct AttackerStats {
 pub struct DefenderStats {
     pub level: i32,
     pub ac: i32,
+    #[sqlx(rename = "dex")]
     pub dex_stat: i32,
     pub mr: i32,
     pub damage_reduction: i32,

@@ -1,9 +1,11 @@
+use sqlx::FromRow; // <--- 補上這行
 use anyhow::Result;
-use sqlx::{MySqlPool, Row};
+use sqlx::MySqlPool;
+use sqlx::Row; // <--- 補上這行，讓我們可以使用 row.get() 方法來讀取資料庫欄位值
 
 /// Character data from the `characters` MySQL table.
 /// Contains only the fields needed for the character list screen.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromRow)] // <--- 這裡也要加上 FromRow
 pub struct CharacterListData {
     pub objid: i32,
     pub char_name: String,
@@ -15,18 +17,25 @@ pub struct CharacterListData {
     pub cur_mp: i32,
     pub ac: i32,
     pub level: i32,
+    // --- 這裡開始是重點 ---
+    #[sqlx(rename = "str")]  // 告訴程式：資料庫欄位其實叫 str
     pub str_stat: i32,
+    #[sqlx(rename = "dex")]
     pub dex_stat: i32,
+    #[sqlx(rename = "con")]
     pub con_stat: i32,
+    #[sqlx(rename = "wis")]
     pub wis_stat: i32,
+    #[sqlx(rename = "cha")]
     pub cha_stat: i32,
+    #[sqlx(rename = "intel")] // 舊版資料庫通常叫 intel 或 intel_stat
     pub int_stat: i32,
     pub access_level: i32,
     pub birthday: i32,
 }
 
 /// Character data loaded for entering the game world.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromRow)]
 pub struct CharacterFullData {
     pub objid: i32,
     pub char_name: String,
@@ -43,11 +52,18 @@ pub struct CharacterFullData {
     pub ac: i32,
     pub level: i32,
     pub exp: i32,
+    // --- 這裡開始是重點 ---
+    #[sqlx(rename = "str")]  // 告訴程式：資料庫欄位其實叫 str
     pub str_stat: i32,
+    #[sqlx(rename = "dex")]
     pub dex_stat: i32,
+    #[sqlx(rename = "con")]
     pub con_stat: i32,
+    #[sqlx(rename = "wis")]
     pub wis_stat: i32,
+    #[sqlx(rename = "cha")]
     pub cha_stat: i32,
+    #[sqlx(rename = "intel")] // 舊版資料庫通常叫 intel 或 intel_stat
     pub int_stat: i32,
     pub loc_x: i32,
     pub loc_y: i32,

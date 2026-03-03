@@ -21,7 +21,7 @@ use crate::ecs::components::skill::{SkillEffects, SkillCooldowns, SkillTemplate}
 /// Everything needed about the caster to execute a skill.
 #[derive(Debug, Clone)]
 pub struct CasterInfo {
-    pub object_id: u32,
+    pub object_id: i32,
     pub x: i32,
     pub y: i32,
     pub map_id: i32,
@@ -29,6 +29,7 @@ pub struct CasterInfo {
     pub level: i32,
     pub cur_hp: i32,
     pub cur_mp: i32,
+    #[sqlx(rename = "intel")] // 舊版資料庫通常叫 intel 或 intel_stat
     pub int_stat: i32,      // affects damage and MP reduction
     pub sp_bonus: i32,      // spell power from equipment
     pub class_type: i32,    // CharClass enum value
@@ -37,7 +38,7 @@ pub struct CasterInfo {
 /// Everything needed about a target.
 #[derive(Debug, Clone)]
 pub struct TargetInfo {
-    pub object_id: u32,
+    pub object_id: i32,
     pub x: i32,
     pub y: i32,
     pub map_id: i32,
@@ -59,7 +60,7 @@ pub enum SkillResult {
     /// Not enough HP.
     InsufficientHp,
     /// Skill on cooldown.
-    OnCooldown { ticks_left: u32 },
+    OnCooldown { ticks_left: i32 },
     /// Caster level too low.
     LevelTooLow,
     /// Target out of range.
@@ -76,9 +77,9 @@ pub enum SkillResult {
 #[derive(Debug)]
 pub struct SkillOutcome {
     /// Damage to deal to target(s). Negative = healing.
-    pub damage: Vec<(u32, i32)>,  // (target_id, damage)
+    pub damage: Vec<(i32, i32)>,  // (target_id, damage)
     /// Buffs to add. (target_id, skill_id, duration_ticks, value)
-    pub buffs: Vec<(u32, i32, u32, i32)>,
+    pub buffs: Vec<(i32, i32, i32, i32)>,
     /// MP consumed from caster.
     pub mp_consumed: i32,
     /// HP consumed from caster.
@@ -90,7 +91,7 @@ pub struct SkillOutcome {
     /// Skill ID for cooldown tracking.
     pub skill_id: i32,
     /// Cooldown ticks to set.
-    pub cooldown_ticks: u32,
+    pub cooldown_ticks: i32,
 }
 
 // ===========================================================================
@@ -180,7 +181,7 @@ pub fn execute_skill(
                 }
             }
 
-            let duration_ticks = (skill.buff_duration as u32) * 5; // seconds → ticks
+            let duration_ticks = (skill.buff_duration as i32) * 5; // seconds → ticks
             buff_list.push((target.object_id, skill.skill_id, duration_ticks, skill.damage_value));
             any_hit = true;
 
@@ -194,8 +195,8 @@ pub fn execute_skill(
 
     // Self-buff (no target needed)
     if targets.is_empty() && skill.buff_duration > 0 && skill.target_to == 0 {
-        let duration_ticks = (skill.buff_duration as u32) * 5;
-        buff_list.push((caster.object_id as u32, skill.skill_id, duration_ticks, skill.damage_value));
+        let duration_ticks = (skill.buff_duration as i32) * 5;
+        buff_list.push((caster.object_id as i32, skill.skill_id, duration_ticks, skill.damage_value));
         any_hit = true;
     }
 
@@ -205,7 +206,7 @@ pub fn execute_skill(
 
     // Calculate cooldown
     let cooldown_ticks = if skill.reuse_delay > 0 {
-        (skill.reuse_delay as u32) / 200 // ms → ticks
+        (skill.reuse_delay as i32) / 200 // ms → ticks
     } else {
         0
     };

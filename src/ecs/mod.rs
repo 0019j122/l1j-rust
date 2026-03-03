@@ -1,9 +1,4 @@
-pub mod class_skills;
-pub mod components;
-pub mod combat;
-pub mod darkelf_skills;
 pub mod game_engine;
-pub mod siege;
-pub mod siege_units;
-pub mod skill_executor;
-pub mod vulcan;
+pub mod components; // 留這行就好
+pub mod class_skills;
+// 刪除下面重複的 pub mod components;

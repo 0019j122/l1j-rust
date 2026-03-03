@@ -102,7 +102,7 @@ impl Default for ItemTemplate {
 /// A single item instance owned by a character or on the ground.
 #[derive(Debug, Clone)]
 pub struct ItemInstance {
-    pub object_id: u32,
+    pub object_id: i32,
     pub item_id: i32,            // references ItemTemplate
     pub count: i32,
     pub is_equipped: bool,
@@ -117,7 +117,7 @@ pub struct ItemInstance {
 }
 
 impl ItemInstance {
-    pub fn new(object_id: u32, item_id: i32) -> Self {
+    pub fn new(object_id: i32, item_id: i32) -> Self {
         ItemInstance {
             object_id,
             item_id,
@@ -201,7 +201,7 @@ impl Inventory {
     }
 
     /// Remove a specific count of an item. Returns true if successful.
-    pub fn remove_item(&mut self, object_id: u32, count: i32) -> bool {
+    pub fn remove_item(&mut self, object_id: i32, count: i32) -> bool {
         if let Some(pos) = self.items.iter().position(|i| i.object_id == object_id) {
             if self.items[pos].count <= count {
                 self.items.remove(pos);
@@ -224,7 +224,7 @@ impl Inventory {
     }
 
     /// Find an item instance by object_id.
-    pub fn get_item(&self, object_id: u32) -> Option<&ItemInstance> {
+    pub fn get_item(&self, object_id: i32) -> Option<&ItemInstance> {
         self.items.iter().find(|i| i.object_id == object_id)
     }
 

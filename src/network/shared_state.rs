@@ -1,94 +1,115 @@
-/// Shared game state accessible by all sessions.
-///
-/// This is the bridge that lets players see each other.
-/// Each session registers itself here when entering the game,
-/// and queries other players for visibility.
-
+use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use crate::models::npc::{NpcTemplate, OnlineNpc};
+use crate::models::player::OnlinePlayer;
+use crate::models::item::OnlineItem;
 
-/// A connected player visible in the game world.
-#[derive(Debug, Clone)]
-pub struct OnlinePlayer {
-    pub object_id: i32,
-    pub name: String,
-    pub x: i32,
-    pub y: i32,
-    pub map_id: i32,
-    pub heading: i32,
-    pub gfx_id: i32,
-    pub level: i32,
-    pub lawful: i32,
-    pub char_type: i32,
-    pub sex: i32,
-    pub clan_name: String,
-    pub title: String,
-    /// Channel to send packets to this player's session.
-    pub packet_tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
-}
-
-/// Shared state wrapped in Arc<Mutex> for cross-session access.
 pub type SharedWorld = Arc<Mutex<WorldState>>;
 
-pub struct WorldState {
-    /// All online players keyed by object_id.
-    pub players: HashMap<i32, OnlinePlayer>,
+/// 建立全域世界狀態
+pub fn new_shared_world() -> SharedWorld {
+    Arc::new(Mutex::new(WorldState::new()))
 }
 
-impl WorldState {
+pub struct WorldState {
+    pub players: HashMap<i32, OnlinePlayer>,
+    pub npcs: HashMap<i32, OnlineNpc>,
+    pub npc_templates: HashMap<i32, NpcTemplate>,
+    pub items: HashMap<i32, OnlineItem>,
+    pub next_npc_id: u32,
+    pub next_item_id: u32,
+}
+
+impl WorldState {      
     pub fn new() -> Self {
-        WorldState {
+        Self {
             players: HashMap::new(),
+            npcs: HashMap::new(),
+            npc_templates: HashMap::new(),
+            items: HashMap::new(),
+            next_npc_id: 1,
+            next_item_id: 1,
         }
     }
 
-    /// Register a player when they enter the game.
+    pub fn generate_next_id(&mut self) -> i32 {
+        self.next_npc_id += 1;
+        self.next_npc_id as i32
+    }
+
     pub fn add_player(&mut self, player: OnlinePlayer) {
         self.players.insert(player.object_id, player);
     }
 
-    /// Remove a player when they leave.
-    pub fn remove_player(&mut self, object_id: i32) {
+    pub fn remove_player(&mut self, object_id: i32) { 
         self.players.remove(&object_id);
     }
 
-    /// Update a player's position after movement.
-    pub fn update_position(&mut self, object_id: i32, x: i32, y: i32, heading: i32) {
-        if let Some(p) = self.players.get_mut(&object_id) {
-            p.x = x;
-            p.y = y;
-            p.heading = heading;
+    pub fn update_position(&mut self, object_id: i32, x: i32, y: i32, heading: u8) {
+        if let Some(player) = self.players.get_mut(&object_id) {
+            player.x = x;
+            player.y = y;
+            player.heading = heading as i32; 
         }
     }
 
-    /// Get all players on the same map within screen range (18 tiles).
-    pub fn get_nearby_players(&self, map_id: i32, x: i32, y: i32, exclude_id: i32) -> Vec<OnlinePlayer> {
+    pub fn get_nearby_players(&self, map_id: i32, x: i32, y: i32) -> Vec<OnlinePlayer> {
         self.players.values()
-            .filter(|p| {
-                p.object_id != exclude_id
-                    && p.map_id == map_id
-                    && (p.x - x).abs() <= 18
-                    && (p.y - y).abs() <= 18
-            })
+            .filter(|p| p.map_id as i32 == map_id && (p.x - x).abs() <= 20 && (p.y - y).abs() <= 20)
             .cloned()
             .collect()
     }
 
-    /// Send a packet to all nearby players (broadcast).
-    pub fn broadcast_to_nearby(&self, map_id: i32, x: i32, y: i32, exclude_id: i32, packet: &[u8]) {
-        for p in self.players.values() {
-            if p.object_id != exclude_id
-                && p.map_id == map_id
-                && (p.x - x).abs() <= 18
-                && (p.y - y).abs() <= 18
+    /// 廣播封包給附近的玩家
+    pub fn broadcast_nearby(&self, map_id: u32, x: i32, y: i32, pkt: Vec<u8>) {
+        for player in self.players.values() {
+            if player.map_id == map_id as i16 && 
+               (player.x - x).abs() <= 18 && 
+               (player.y - y).abs() <= 18 
             {
-                let _ = p.packet_tx.send(packet.to_vec());
+                if let Some(ref tx) = player.packet_tx {
+                    let _ = tx.send(pkt.clone());
+                }
             }
         }
     }
-}
 
-pub fn create_shared_world() -> SharedWorld {
-    Arc::new(Mutex::new(WorldState::new()))
+    /// 將 NPC 生成到戰場上
+    pub fn spawn_to_battlefield(&mut self, template_id: i32, x: i32, y: i32, map: i32) {
+        if let Some(temp) = self.npc_templates.get(&template_id).cloned() {
+            let obj_id = self.generate_next_id();
+            let active_npc = OnlineNpc {
+                object_id: obj_id,
+                template_id,
+                cur_hp: temp.hp, 
+                template: temp,  
+                x,
+                y,
+                map_id: map as i16,
+                heading: 0, 
+            };
+            self.npcs.insert(obj_id, active_npc);
+        }
+    }   
+        
+    /// 處理 NPC 死亡，將其從活躍列表移除並回傳資料
+    pub fn handle_npc_death(&mut self, object_id: i32) -> Option<OnlineNpc> {
+        self.npcs.remove(&object_id)
+    }
+
+    /// 在地上生成一個掉落物實體
+    pub fn spawn_item_on_ground(&mut self, item_id: i32, count: i32, x: i32, y: i32, map_id: i16) -> i32 {
+        let obj_id = self.generate_next_id();
+        let new_item = OnlineItem {
+            object_id: obj_id,
+            item_id,
+            count,
+            x,
+            y,
+            map_id,
+            is_equipped: false, 
+        };
+        self.items.insert(obj_id, new_item.clone());
+        obj_id
+    }
 }

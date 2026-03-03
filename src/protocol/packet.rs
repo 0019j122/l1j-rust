@@ -8,7 +8,7 @@
 // ---------------------------------------------------------------------------
 // PacketBuilder - for constructing server → client packets
 // ---------------------------------------------------------------------------
-
+use crate::protocol::encoding::encode_big5;
 pub struct PacketBuilder {
     buf: Vec<u8>,
 }
@@ -49,7 +49,7 @@ impl PacketBuilder {
     /// If None, writes just the null terminator.
     pub fn write_s(mut self, text: Option<&str>) -> Self {
         if let Some(s) = text {
-            let encoded = crate::protocol::encoding::encode_big5(s);
+            let encoded = encode_big5(s);
             self.buf.extend_from_slice(&encoded);
         }
         self.buf.push(0x00);

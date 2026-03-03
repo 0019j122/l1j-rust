@@ -4,9 +4,9 @@ pub struct Movement {
     /// Pending move direction (heading 0-7), or -1 if no move pending
     pub pending_heading: i32,
     /// Move speed in ticks (lower = faster)
-    pub move_delay_ticks: u32,
+    pub move_delay_ticks: i32,
     /// Ticks remaining until next move allowed
-    pub cooldown_ticks: u32,
+    pub cooldown_ticks: i32,
 }
 
 impl Movement {

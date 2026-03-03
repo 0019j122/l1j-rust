@@ -1,18 +1,25 @@
 /// C_NEWCHAR (C_CreateChar) packet parser + character creation logic.
-
+use sqlx::{self, FromRow};
 use crate::protocol::packet::PacketReader;
 
 /// Parsed C_NEWCHAR packet.
-#[derive(Debug)]
+#[derive(Debug, Clone, FromRow)] // <--- 這裡也要加上 FromRow
 pub struct NewChar {
     pub name: String,
     pub char_type: i32,  // 0=Prince,1=Knight,2=Elf,3=Mage,4=DarkElf,5=DragonKnight,6=Illusionist
     pub sex: i32,        // 0=male, 1=female
+    // --- 這裡開始是重點 ---
+    #[sqlx(rename = "str")]  // 告訴程式：資料庫欄位其實叫 str
     pub str_stat: i32,
+    #[sqlx(rename = "dex")]
     pub dex_stat: i32,
+    #[sqlx(rename = "con")]
     pub con_stat: i32,
+    #[sqlx(rename = "wis")]
     pub wis_stat: i32,
+    #[sqlx(rename = "cha")]
     pub cha_stat: i32,
+    #[sqlx(rename = "intel")] // 舊版資料庫通常叫 intel 或 intel_stat
     pub int_stat: i32,
 }
 

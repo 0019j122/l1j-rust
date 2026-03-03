@@ -1,23 +1,13 @@
-use anyhow::Result;
+// src/db/pool.rs
 use sqlx::mysql::MySqlPoolOptions;
 use sqlx::MySqlPool;
+use anyhow::Result;
 
-use crate::config::DatabaseSection;
-
-/// Create an async MySQL connection pool.
-///
-/// Uses sqlx with tokio runtime. The pool lazily creates connections
-/// up to `max_connections`.
-pub async fn create_pool(config: &DatabaseSection) -> Result<MySqlPool> {
+// 必須有 pub，且名稱必須完全一致
+pub async fn init_db_pool(db_url: &str) -> Result<MySqlPool> {
     let pool = MySqlPoolOptions::new()
-        .max_connections(config.max_connections)
-        .connect(&config.url)
+        .max_connections(5)
+        .connect(db_url)
         .await?;
-
-    // Verify the connection works
-    sqlx::query("SELECT 1")
-        .execute(&pool)
-        .await?;
-
     Ok(pool)
 }

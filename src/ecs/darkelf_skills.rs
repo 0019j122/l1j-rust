@@ -160,7 +160,7 @@ pub struct ArmorBreakEffect {
     /// 持續時間（秒）。
     pub duration_sec: i32,
     /// 持續 ticks (duration_sec * 5)。
-    pub duration_ticks: u32,
+    pub duration_ticks: i32,
     /// 是否無視魔法屏障。
     pub ignore_barrier: bool,
     /// 施法範圍（格）。

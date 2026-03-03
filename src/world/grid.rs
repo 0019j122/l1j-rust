@@ -48,7 +48,7 @@ impl RegionKey {
 }
 
 /// Object ID type.
-pub type ObjectId = u32;
+pub type ObjectId = i32;
 
 /// The grid index: maps RegionKey -> set of object IDs in that region.
 ///
@@ -219,7 +219,7 @@ mod tests {
         let mut grid = WorldGrid::new();
 
         // Spawn 10,000 NPCs across the map
-        for i in 0..10_000u32 {
+        for i in 0..10_000i32 {
             let x = 32000 + (i as i32 % 200);
             let y = 32000 + (i as i32 / 200);
             grid.add(i, 4, x, y);

@@ -283,7 +283,7 @@ mod tests {
             undead: 0, poison_atk: 0, paralysis_atk: 0,
             agro: true, agrososc: false, agrocoi: false,
             family: 0, agrofamily: 0, pickup_item: false,
-            brave_speed: 0, passispeed: 640, atkspeed: 1020,
+            brave_speed: 0, passi_speed: 640, atk_speed: 1020,
             atk_magic_speed: 0, tamable: false, teleport: false,
             doppel: false, hpr_interval: 0, hpr: 0,
             mpr_interval: 0, mpr: 0, ranged: 0, light_size: 0,

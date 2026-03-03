@@ -20,15 +20,15 @@ pub fn build_server_version(server_start_time: i32) -> Vec<u8> {
     PacketBuilder::new(server::S_OPCODE_SERVERVERSION)
         .write_c(0x00)          // auth ok flag
         .write_c(0x01)          // server ID
-        .write_d(0x07cbf4dd_u32 as i32)  // server version (3.80c TW)
-        .write_d(0x07cbf4dd_u32 as i32)  // cache version
-        .write_d(0x77fc692d_u32 as i32)  // auth version
-        .write_d(0x07cbf4d9_u32 as i32)  // npc version
+        .write_d(0x07cbf4dd_i32 as i32)  // server version (3.80c TW)
+        .write_d(0x07cbf4dd_i32 as i32)  // cache version
+        .write_d(0x77fc692d_i32 as i32)  // auth version
+        .write_d(0x07cbf4d9_i32 as i32)  // npc version
         .write_d(server_start_time)       // server start time
         .write_c(0x00)          // unknown
         .write_c(0x00)          // unknown
         .write_c(0x03)          // country: 3 = Taiwan
-        .write_d(0x087f7dc2_u32 as i32)  // server type
+        .write_d(0x087f7dc2_i32 as i32)  // server type
         .write_d(uptime)        // uptime in seconds
         .write_h(0x01)          // unknown
         .build()

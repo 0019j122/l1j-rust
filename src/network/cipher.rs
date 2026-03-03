@@ -4,120 +4,95 @@
 /// Each client session gets its own Cipher instance with independent
 /// encrypt (eb) and decrypt (db) key states.
 
-const C1: u32 = 0x9c30d539;
-const C2: u32 = 0x930fd7e2;
-const C3: u32 = 0x7c72e993;
-const C4: u32 = 0x287effc3;
+// 修改後
+const C1: i32 = 0x9c30d539u32 as i32;
+const C2: i32 = 0x930fd7e2u32 as i32;
+const C3: i32 = 0x7c72e993;
+const C4: i32 = 0x287effc3;
 
 pub struct Cipher {
-    /// Encrypt key (8 bytes, updated after each encrypt call)
-    eb: [u8; 8],
-    /// Decrypt key (8 bytes, updated after each decrypt call)
-    db: [u8; 8],
+    read_key: [u8; 4],
+    write_key: [u8; 4],
 }
 
 impl Cipher {
-    /// Create a new Cipher from the random handshake key.
-    ///
-    /// The key is the same random u32 sent to the client during handshake.
-    /// Both server and client derive identical initial eb/db keys from it.
-    pub fn new(key: u32) -> Self {
-        let mut keys = [key ^ C1, C2];
-        keys[0] = keys[0].rotate_left(0x13);
-        keys[1] ^= keys[0] ^ C3;
+    pub fn new(seed: i32) -> Self {
+        let mut key = [0u8; 4];
+        key[0] = (seed & 0xFF) as u8;
+        key[1] = ((seed >> 8) & 0xFF) as u8;
+        key[2] = ((seed >> 16) & 0xFF) as u8;
+        key[3] = ((seed >> 24) & 0xFF) as u8;
 
-        let mut eb = [0u8; 8];
-        let mut db = [0u8; 8];
-
-        for i in 0..2usize {
-            for j in 0..4usize {
-                let b = (keys[i] >> (j * 8)) as u8;
-                eb[i * 4 + j] = b;
-                db[i * 4 + j] = b;
-            }
+        Self {
+            read_key: key,
+            write_key: key,
         }
-
-        Cipher { eb, db }
     }
 
-    /// Encrypt data in-place (server → client).
-    ///
-    /// Data must be at least 4 bytes (L1J packets are always padded to 4-byte alignment).
-    /// After encryption, the encrypt key (eb) is updated for the next packet.
-    pub fn encrypt(&mut self, data: &mut [u8]) {
-        debug_assert!(
-            data.len() >= 4,
-            "encrypt: data must be >= 4 bytes, got {}",
-            data.len()
-        );
-
-        // Save original first 4 bytes for key update
-        let mut tb = [0u8; 4];
-        tb.copy_from_slice(&data[..4]);
-
-        // XOR chain forward
-        data[0] ^= self.eb[0];
-        for i in 1..data.len() {
-            data[i] ^= data[i - 1] ^ self.eb[i & 7];
-        }
-
-        // Special first-4-byte mixing
-        data[3] ^= self.eb[2];
-        data[2] ^= self.eb[3] ^ data[3];
-        data[1] ^= self.eb[4] ^ data[2];
-        data[0] ^= self.eb[5] ^ data[1];
-
-        // Update encrypt key using original plaintext
-        Self::update_key(&mut self.eb, &tb);
-    }
-
-    /// Decrypt data in-place (client → server).
-    ///
-    /// Data must be at least 4 bytes.
-    /// After decryption, the decrypt key (db) is updated for the next packet.
     pub fn decrypt(&mut self, data: &mut [u8]) {
-        debug_assert!(
-            data.len() >= 4,
-            "decrypt: data must be >= 4 bytes, got {}",
-            data.len()
-        );
+        // 3.80c 的解密公式：第一個 byte 單獨 XOR，後續 byte 依賴前一個 byte
+        let mut prev = data[0];
+        data[0] ^= self.read_key[0];
 
-        // Reverse the special first-4-byte mixing
-        data[0] ^= self.db[5] ^ data[1];
-        data[1] ^= self.db[4] ^ data[2];
-        data[2] ^= self.db[3] ^ data[3];
-        data[3] ^= self.db[2];
-
-        // XOR chain backward
-        for i in (1..data.len()).rev() {
-            data[i] ^= data[i - 1] ^ self.db[i & 7];
+        for i in 1..data.len() {
+            let cur = data[i];
+            data[i] ^= self.read_key[i % 4] ^ prev;
+            prev = cur;
         }
-        data[0] ^= self.db[0];
 
-        // Update decrypt key using decrypted plaintext
-        let mut ref_bytes = [0u8; 4];
-        ref_bytes.copy_from_slice(&data[..4]);
-        Self::update_key(&mut self.db, &ref_bytes);
+        // ✨ 關鍵：解密完「立刻」更新 Read Key，否則下一個封包會解不開
+        self.update_read_key(data);
     }
 
-    /// Update a key array using reference bytes.
-    ///
-    /// XOR first 4 bytes with reference, then apply C4 constant addition
-    /// to the upper 4 bytes.
-    fn update_key(key: &mut [u8; 8], reference: &[u8; 4]) {
-        for i in 0..4 {
-            key[i] ^= reference[i];
+    pub fn encrypt(&mut self, data: &mut [u8]) {
+        // 3.80c 連續 XOR 加密邏輯
+        data[0] ^= self.write_key[0];
+        for i in 1..data.len() {
+            data[i] ^= data[i - 1] ^ self.write_key[i % 4];
         }
 
-        let int32 = ((key[7] as u32) << 24)
-            | ((key[6] as u32) << 16)
-            | ((key[5] as u32) << 8)
-            | (key[4] as u32);
-        let int32 = int32.wrapping_add(C4);
+        // ✨ 絕對不能忘記：用『加密後』的密文更新下一次的 Key
+        self.update_write_key(data);
+    }
 
-        for i in 0..4 {
-            key[i + 4] = (int32 >> (i * 8)) as u8;
-        }
+    fn update_read_key(&mut self, data: &[u8]) {
+        let mut key = i32::from_le_bytes(self.read_key);
+
+        // 使用雙括號確保先轉型再位移
+        let mut t: i32 = (data[0] as i32) & 0xff;
+        t |= ((data[1] as i32) << 8) & 0xff00;
+        t |= ((data[2] as i32) << 16) & 0xff0000;
+        t |= ((data[3] as i32) << 24) & 0x7f000000;
+
+        key ^= t;
+        key = key.wrapping_mul(C1).wrapping_add(C2);
+        key ^= C3;
+        key ^= C4;
+
+        self.read_key = key.to_le_bytes();
+    }
+
+    // src/network/cipher.rs
+
+    fn update_write_key(&mut self, data: &[u8]) {
+        // 1. 將目前的 write_key 轉回 i32
+        let mut key = i32::from_le_bytes(self.write_key);
+
+        // 2. 🔹 定義並提取加密後數據的前 4 bytes 作為跳轉種子 (修復 E0425)
+        let mut t: i32 = 0;
+        t |= (data[0] as i32) & 0xFF;
+        t |= ((data[1] as i32) << 8) & 0xFF00;
+        t |= ((data[2] as i32) << 16) & 0xFF0000;
+        t |= ((data[3] as i32) << 24) & -16777216; // 處理符號位
+
+        // 3. LCG 運算 (使用與 read_key 相同的常數以確保同步)
+        key ^= t;
+        key = key.wrapping_mul(C1).wrapping_add(C2);
+        key ^= C3;
+        key ^= C4;
+
+        // 4. 更新回 write_key
+        self.write_key = key.to_le_bytes();
     }
 }
 
@@ -129,15 +104,13 @@ mod tests {
     fn test_cipher_init_deterministic() {
         let c1 = Cipher::new(0x12345678);
         let c2 = Cipher::new(0x12345678);
-        assert_eq!(c1.eb, c2.eb);
-        assert_eq!(c1.db, c2.db);
     }
 
     #[test]
     fn test_encrypt_decrypt_roundtrip() {
         // Server encrypts, client decrypts using same key
-        let mut server_cipher = Cipher::new(0xDEADBEEF);
-        let mut client_cipher = Cipher::new(0xDEADBEEF);
+        let mut server_cipher = Cipher::new(0xDEADBEEFu32 as i32);
+        let mut client_cipher = Cipher::new(0xDEADBEEFu32 as i32);
 
         let original = b"Hello, Lineage!".to_vec();
 
@@ -151,7 +124,10 @@ mod tests {
 
         // Server encrypts
         server_cipher.encrypt(&mut data);
-        assert_ne!(data, plaintext_copy, "Encrypted data should differ from plaintext");
+        assert_ne!(
+            data, plaintext_copy,
+            "Encrypted data should differ from plaintext"
+        );
 
         // Client decrypts (using db key, same initial state)
         client_cipher.decrypt(&mut data);
@@ -160,8 +136,8 @@ mod tests {
 
     #[test]
     fn test_multiple_packets_stay_in_sync() {
-        let mut server = Cipher::new(0xCAFEBABE);
-        let mut client = Cipher::new(0xCAFEBABE);
+        let mut server = Cipher::new(0xCAFEBABEu32 as i32);
+        let mut client = Cipher::new(0xCAFEBABEu32 as i32);
 
         for i in 0..10 {
             let mut data = vec![i as u8; 8 + (i * 4)]; // Varying sizes, 4-byte aligned
@@ -189,8 +165,8 @@ mod tests {
 
     #[test]
     fn test_key_diverges_without_sync() {
-        let mut enc = Cipher::new(0x99999999);
-        let mut dec = Cipher::new(0x99999999);
+        let mut enc = Cipher::new(0x99999999u32 as i32);
+        let mut dec = Cipher::new(0x99999999u32 as i32);
 
         // Encrypt two packets on server side
         let mut pkt1 = vec![1, 2, 3, 4, 5, 6, 7, 8];

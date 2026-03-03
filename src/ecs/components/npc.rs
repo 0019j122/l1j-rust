@@ -1,21 +1,29 @@
+use sqlx::FromRow;
 /// NPC template data loaded from the `npc` database table.
 ///
 /// This is the static template data, shared by all instances of the same NPC type.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromRow)] // <--- 這裡也要加上 FromRow
 pub struct NpcTemplate {
     pub npc_id: i32,
     pub name: String,
     pub nameid: String,
+    #[sqlx(rename = "impl")]
     pub impl_type: String,    // "L1Monster", "L1Guard", "L1Merchant", etc.
     pub gfxid: i32,
     pub level: i32,
     pub hp: i32,
     pub mp: i32,
     pub ac: i32,
+    // --- 這裡開始是重點 ---
+    #[sqlx(rename = "str")]  // 告訴程式：資料庫欄位其實叫 str
     pub str_stat: i32,
+    #[sqlx(rename = "con")]
     pub con_stat: i32,
+    #[sqlx(rename = "dex")]
     pub dex_stat: i32,
+    #[sqlx(rename = "wis")]
     pub wis_stat: i32,
+    #[sqlx(rename = "intel")] // 舊版資料庫通常叫 intel 或 intel_stat
     pub int_stat: i32,
     pub mr: i32,
     pub exp: i32,
@@ -24,32 +32,36 @@ pub struct NpcTemplate {
     pub undead: i32,
     pub poison_atk: i32,
     pub paralysis_atk: i32,
-    pub agro: bool,           // aggressive
-    pub agrososc: bool,       // aggressive on sight
-    pub agrocoi: bool,        // aggressive on combat
+    pub agro: i32,           // aggressive
+    pub agrososc: i32,       // aggressive on sight
+    pub agrocoi: i32,        // aggressive on combat
     pub family: i32,
     pub agrofamily: i32,
-    pub pickup_item: bool,
+    #[sqlx(rename = "picupitem")]
+    pub pickup_item: i32,
+    #[sqlx(rename = "bravespeed")] // 嘗試去掉底線，或是對照你資料庫裡的實際名稱
     pub brave_speed: i32,
-    pub passispeed: i32,
-    pub atkspeed: i32,
+    pub passi_speed: i32,
+    // 記得 atk_speed 要對齊資料庫名
+    #[sqlx(rename = "atkspeed")]
+    pub atk_speed: i32,
     pub atk_magic_speed: i32,
-    pub tamable: bool,
-    pub teleport: bool,
-    pub doppel: bool,
+    pub tamable: i32,
+    pub teleport: i32,
+    pub doppel: i32,
     pub hpr_interval: i32,
     pub hpr: i32,
     pub mpr_interval: i32,
     pub mpr: i32,
     pub ranged: i32,
     pub light_size: i32,
-    pub change_head: bool,
+    pub change_head: i32,
     pub damage_reduction: i32,
-    pub hard: bool,
+    pub hard: i32,
     pub karma: i32,
     pub transform_id: i32,
     pub transform_gfxid: i32,
-    pub cant_resurrect: bool,
+    pub cant_resurrect: i32,
 }
 
 /// AI state for a single NPC instance.
@@ -58,13 +70,13 @@ pub struct AiState {
     /// Is the AI actively running?
     pub active: bool,
     /// Ticks until next AI action.
-    pub sleep_ticks: u32,
+    pub sleep_ticks: i32,
     /// Are there players nearby? (If false, AI can be skipped)
     pub players_nearby: bool,
     /// Current hate list: (entity_id, hate_value)
-    pub hate_list: Vec<(u32, i32)>,
+    pub hate_list: Vec<(i32, i32)>,
     /// Current target entity ID (0 = no target)
-    pub target_id: u32,
+    pub target_id: i32,
     /// Home position (spawn point) for return behavior
     pub home_x: i32,
     pub home_y: i32,
@@ -93,7 +105,7 @@ impl AiState {
 #[derive(Debug, Clone)]
 pub struct SpawnInfo {
     pub spawn_id: i32,
-    pub npc_template_id: i32,
+    pub npc_template_id: i32,   // 改成 i32。)
     pub loc_x: i32,
     pub loc_y: i32,
     pub map_id: i32,

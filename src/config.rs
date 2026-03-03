@@ -1,53 +1,57 @@
-use anyhow::{Context, Result};
 use serde::Deserialize;
-use std::fs;
 
-#[derive(Debug, Deserialize, Clone)]
-pub struct ServerConfig {
-    pub server: ServerSection,
-    pub database: DatabaseSection,
-    pub game: GameSection,
-    #[serde(default = "default_paths")]
-    pub paths: PathsSection,
+#[derive(Deserialize, Debug, Clone, Default)]
+pub struct Item {
+    pub item_id: i32,
+    pub gfx_id: Option<i32>,
+    pub count: u32,
+    pub enchant_level: u8,
 }
 
-fn default_paths() -> PathsSection {
-    PathsSection {
-        maps_dir: "../L1J-TW_3.80c/maps".to_string(),
-    }
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct ServerSection {
+// 🔹 補上這個，不然 listener.rs 會報錯說找不到 host/port
+#[derive(Deserialize, Debug, Clone)]
+pub struct Server {
     pub host: String,
     pub port: u16,
-    pub max_online_users: u32,
 }
 
-#[derive(Debug, Deserialize, Clone)]
-pub struct DatabaseSection {
+#[derive(Deserialize, Debug, Clone)] // 🔹 加上 Clone
+pub struct GameRates {
+    pub exp: f64,
+    pub gold_drop: f64,
+    pub baby_rate: f64,
+}
+
+#[derive(Deserialize, Debug, Clone)] // 🔹 加上 Clone
+pub struct StarterGear {
+    pub items: Vec<Item>,
+}
+
+#[derive(Deserialize, Debug, Clone)] // 🔹 加上 Clone
+pub struct DatabaseConfig {
     pub url: String,
-    pub max_connections: u32,
 }
 
-#[derive(Debug, Deserialize, Clone)]
-pub struct GameSection {
-    pub tick_interval_ms: u64,
-    pub npc_ai_sleep_range: u32,
-    pub packet_batch_flush: bool,
+#[derive(Deserialize, Debug, Clone)] // 🔹 關鍵！加上 Clone，解決 E0599
+pub struct ServerConfig {
+    pub server: Server, // 🔹 補上這行
+    pub database: DatabaseConfig,
+    pub game_rates: GameRates,
+    pub starter_gear: StarterGear,
 }
 
-#[derive(Debug, Deserialize, Clone)]
-pub struct PathsSection {
-    pub maps_dir: String,
-}
+// 在 src/config.rs 的最後面補上這段：
 
-impl ServerConfig {
-    pub fn load(path: &str) -> Result<Self> {
-        let content = fs::read_to_string(path)
-            .with_context(|| format!("Failed to read config file: {}", path))?;
-        let config: ServerConfig =
-            toml::from_str(&content).with_context(|| "Failed to parse config file")?;
-        Ok(config)
-    }
+pub fn load_config() -> anyhow::Result<ServerConfig> {
+    let config_path = "config.toml";
+    
+    // 讀取檔案內容
+    let content = std::fs::read_to_string(config_path)
+        .map_err(|e| anyhow::anyhow!("找不到 {}: {}", config_path, e))?;
+    
+    // 將 TOML 轉成 ServerConfig 結構
+    let config: ServerConfig = toml::from_str(&content)
+        .map_err(|e| anyhow::anyhow!("設定檔格式解析失敗 (TOML error): {}", e))?;
+    
+    Ok(config)
 }

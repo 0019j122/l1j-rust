@@ -1,69 +1,54 @@
-/// Inventory-related server packets: S_AddItem, S_DeleteInventoryItem, S_InvList, S_ItemStatus.
-
-use crate::ecs::components::item::{ItemInstance, ItemTemplate};
-use crate::protocol::opcodes::server;
+use crate::config::ServerConfig;
+use crate::data::item_table::ItemTable;
 use crate::protocol::packet::PacketBuilder;
+use crate::protocol::opcodes::server;
+use anyhow::{Result, Context};
+use sqlx::MySqlPool;
 
-/// Write a single item entry (shared between S_AddItem and S_InvList).
-fn write_item_entry(pb: PacketBuilder, item: &ItemInstance, template: &ItemTemplate) -> PacketBuilder {
-    let view_name = item.get_view_name(template);
-    let delete_flag: i32 = if item.bless >= 128 { 3 } else if template.tradable { 7 } else { 2 };
+pub async fn give_starter_items(
+    pool: &MySqlPool,
+    item_table: &ItemTable,
+    player_tx: &tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
+    char_id: i32,
+    config: &ServerConfig,
+) -> Result<()> {
+    println!("🎁 開始發放新手物資給角色 ID: {}", char_id);
 
-    pb.write_d(item.object_id as i32)           // object ID
-        .write_h(template.ground_gfx_id)        // desc/gfx
-        .write_c(template.use_type)             // use type
-        .write_c(item.charge_count)             // charge count
-        .write_h(template.inv_gfx_id)           // inventory GFX
-        .write_c(item.bless)                    // bless
-        .write_d(item.count)                    // count
-        .write_c(0)                             // item status X
-        .write_s(Some(&view_name))              // display name
-        .write_c(0)                             // status bytes length (simplified)
-        .write_c(0x17)                          // fixed value
-        .write_c(0)                             // padding
-        .write_h(0)                             // padding
-        .write_h(0)                             // padding
-        .write_c(item.enchant_level)            // enchant level
-        .write_d(item.object_id as i32)         // world serial
-        .write_d(0)                             // padding
-        .write_d(0)                             // padding
-        .write_d(delete_flag)                   // delete flag
-        .write_c(0)                             // padding
-}
+    for starter in &config.starter_gear.items {
+        // 1. 檢查物品是否存在於模板
+        let template = item_table.templates.get(&starter.item_id)
+            .context("資料庫找不到該物品模板")?;
 
-/// Build S_ADDITEM - adds a single item to the client's inventory display.
-pub fn build_add_item(item: &ItemInstance, template: &ItemTemplate) -> Vec<u8> {
-    let pb = PacketBuilder::new(server::S_OPCODE_ADDITEM);
-    write_item_entry(pb, item, template).build()
-}
+        // 2. 寫入資料庫 (持久化)
+        // 注意：這裡假設你用自增 ID 或由資料庫生成唯一的 ID
+        let result = sqlx::query!(
+            "INSERT INTO character_items (char_objid, item_id, count, enchant_level) VALUES (?, ?, ?, ?)",
+            char_id,
+            starter.item_id,
+            starter.count,
+            starter.enchant_level
+        )
+        .execute(pool)
+        .await?;
 
-/// Build S_DELETEINVENTORYITEM - removes an item from client inventory.
-pub fn build_delete_inventory_item(object_id: u32) -> Vec<u8> {
-    PacketBuilder::new(server::S_OPCODE_DELETEINVENTORYITEM)
-        .write_d(object_id as i32)
-        .build()
-}
+        let new_obj_id = result.last_insert_id() as i32;
 
-/// Build S_INVLIST - sends the full inventory on login.
-pub fn build_inv_list(items: &[(ItemInstance, ItemTemplate)]) -> Vec<u8> {
-    let mut pb = PacketBuilder::new(server::S_OPCODE_INVLIST)
-        .write_c(items.len() as i32);
+        // 3. 構建封包通知客戶端 (S_INVLIST / S_ADD_INVENTORY_ITEM)
+        // 天堂的 S_INVLIST 封包格式通常包含非常多欄位：
+        // [ID][Name][Type][Status][Count][Enchant]...
+        let packet = PacketBuilder::new(server::S_OPCODE_INVLIST)
+            .write_d(new_obj_id)       // Object ID
+            .write_h(starter.item_id)   // Item ID / GFX ID
+            .write_c(0)                // 是否已鑑定
+            .write_d(starter.count as i32)              // 數量轉換為 i32
+            .write_c(starter.enchant_level as i32)      // 強化等級轉換為 i32
+            .build();
 
-    for (item, template) in items {
-        pb = write_item_entry(pb, item, template);
+        // 4. 發送封包
+        player_tx.send(packet).map_err(|e| anyhow::anyhow!("發送物品封包失敗: {}", e))?;
+        
+        println!("  - 已成功發送物品: {} (ID: {})", template.name, starter.item_id);
     }
 
-    pb.build()
-}
-
-/// Build S_ITEMSTATUS - updates item display (count, enchant, name change).
-pub fn build_item_status(item: &ItemInstance, template: &ItemTemplate) -> Vec<u8> {
-    let view_name = item.get_view_name(template);
-
-    PacketBuilder::new(server::S_OPCODE_ITEMSTATUS)
-        .write_d(item.object_id as i32)
-        .write_s(Some(&view_name))
-        .write_d(item.count)
-        .write_c(0)  // status bytes length (simplified)
-        .build()
+    Ok(())
 }

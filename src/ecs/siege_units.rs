@@ -37,12 +37,12 @@ pub enum CatapultSide {
 pub const BOMB_ITEM_ID: i32 = 41900;
 
 /// 投石器冷卻時間（ticks，10 秒 = 50 ticks @ 200ms/tick）。
-pub const CATAPULT_RELOAD_TICKS: u32 = 50;
+pub const CATAPULT_RELOAD_TICKS: i32 = 50;
 
 /// 投石器狀態。
 #[derive(Debug, Clone)]
 pub struct CatapultState {
-    pub object_id: u32,
+    pub object_id: i32,
     pub side: CatapultSide,
     pub castle_id: i32,
     pub x: i32,
@@ -51,9 +51,9 @@ pub struct CatapultState {
     pub cur_hp: i32,
     pub max_hp: i32,
     /// 操作中的王族 object_id（0 = 無人操作）。
-    pub operator_id: u32,
+    pub operator_id: i32,
     /// 裝填冷卻剩餘 ticks。
-    pub reload_remaining: u32,
+    pub reload_remaining: i32,
     /// 是否已被摧毀。
     pub destroyed: bool,
 }
@@ -64,7 +64,7 @@ pub enum CatapultAction {
     /// 成功發射。只對玩家/召喚造成傷害，不影響城門/塔。
     Fire { impact_x: i32, impact_y: i32, damage: i32, splash_radius: i32 },
     /// 裝填中。
-    Reloading { ticks_left: u32 },
+    Reloading { ticks_left: i32 },
     /// 無人操作。
     NoOperator,
     /// 操作者不是王族。
@@ -77,7 +77,7 @@ pub enum CatapultAction {
 
 impl CatapultState {
     /// 攻城開始或城主交替時建立/修復投石器。
-    pub fn new(object_id: u32, castle_id: i32, side: CatapultSide, x: i32, y: i32, map_id: i32) -> Self {
+    pub fn new(object_id: i32, castle_id: i32, side: CatapultSide, x: i32, y: i32, map_id: i32) -> Self {
         CatapultState {
             object_id, side, castle_id, x, y, map_id,
             cur_hp: 500,
@@ -89,7 +89,7 @@ impl CatapultState {
     }
 
     /// 玩家上車操作（必須是王族）。
-    pub fn mount(&mut self, player_id: u32, is_royal: bool) -> bool {
+    pub fn mount(&mut self, player_id: i32, is_royal: bool) -> bool {
         if self.destroyed || self.operator_id != 0 || !is_royal {
             return false;
         }
@@ -273,7 +273,7 @@ pub fn official_guard_templates() -> Vec<GuardTemplate> {
 /// 守衛實體。
 #[derive(Debug, Clone)]
 pub struct GuardState {
-    pub object_id: u32,
+    pub object_id: i32,
     pub guard_type: GuardType,
     pub castle_id: i32,
     pub x: i32,
@@ -283,8 +283,8 @@ pub struct GuardState {
     pub cur_hp: i32,
     pub max_hp: i32,
     pub level: i32,
-    pub target_id: u32,
-    pub atk_cooldown: u32,
+    pub target_id: i32,
+    pub atk_cooldown: i32,
     pub is_alive: bool,
     pub damage_min: i32,
     pub damage_max: i32,
@@ -292,7 +292,7 @@ pub struct GuardState {
 }
 
 impl GuardState {
-    pub fn from_template(object_id: u32, t: &GuardTemplate, castle_id: i32, x: i32, y: i32, map_id: i32) -> Self {
+    pub fn from_template(object_id: i32, t: &GuardTemplate, castle_id: i32, x: i32, y: i32, map_id: i32) -> Self {
         GuardState {
             object_id, guard_type: t.guard_type, castle_id,
             x, y, map_id, heading: 0,
@@ -357,8 +357,8 @@ pub mod siege_buff {
 // ===========================================================================
 
 pub struct SiegeUnitManager {
-    pub catapults: HashMap<u32, CatapultState>,
-    pub guards: HashMap<u32, GuardState>,
+    pub catapults: HashMap<i32, CatapultState>,
+    pub guards: HashMap<i32, GuardState>,
 }
 
 impl SiegeUnitManager {

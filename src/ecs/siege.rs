@@ -161,7 +161,7 @@ pub mod door_action {
 /// A castle door entity.
 #[derive(Debug, Clone)]
 pub struct DoorState {
-    pub object_id: u32,
+    pub object_id: i32,
     pub castle_id: i32,
     pub max_hp: i32,
     pub cur_hp: i32,
@@ -225,7 +225,7 @@ pub const ADEN_SUB_TOWER_NPC_IDS: [i32; 4] = [81190, 81191, 81192, 81193];
 /// A castle tower entity.
 #[derive(Debug, Clone)]
 pub struct TowerState {
-    pub object_id: u32,
+    pub object_id: i32,
     pub castle_id: i32,
     pub npc_id: i32,
     pub max_hp: i32,
@@ -265,7 +265,7 @@ impl TowerState {
 /// Crown state - only exists after tower destruction during active war.
 #[derive(Debug, Clone)]
 pub struct CrownState {
-    pub object_id: u32,
+    pub object_id: i32,
     pub castle_id: i32,
     pub x: i32,
     pub y: i32,
